@@ -4,9 +4,9 @@ import { stripe } from '../../../services/stripe';
 
 export async function saveSubscription(
   subscriptionId: string,
-  customerId: string
+  customerId: string,
+  createAction = false
 ) {
-  console.log('USERREF', subscriptionId, customerId)
   const userRef = await fauna.query(
       q.Select(
         "ref",
@@ -19,10 +19,7 @@ export async function saveSubscription(
       )
   )
 
-  console.log('USERREF', userRef)
-  
   const subscription = await stripe.subscriptions.retrieve(subscriptionId)
-  console.log('USERREF', subscription)
   
   const subscriptionData = {
     id: subscription.id,
@@ -30,12 +27,27 @@ export async function saveSubscription(
     status: subscription.status,
     price_id: subscription.items.data[0].price.id,
   }
-  console.log('USERREF', subscriptionData)
 
-  await fauna.query(
-    q.Create(
-      q.Collection('subscriptions'),
-      { data: subscriptionData }
+  if (createAction) {
+    await fauna.query(
+      q.Create(
+        q.Collection('subscriptions'),
+        { data: subscriptionData }
+      )
     )
-  )
+  } else {
+    await fauna.query(
+      q.Replace(
+        q.Select(
+          "ref",
+          q.Get(
+            q.Match(
+              q.Index('subscription_by_id'),
+              subscriptionId
+            )
+          )
+        ), { data: subscriptionData }
+      )
+    )
+  } 
 }
